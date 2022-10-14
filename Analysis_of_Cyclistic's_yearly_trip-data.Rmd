@@ -1,0 +1,537 @@
+---
+title: "Analysis_of_Cyclistic's_yearly_trip-data"
+author: "Bompotas A."
+date: "2022-10-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+```
+
+
+
+First we will import the appropriate packages to analyze and visualize data.
+
+```{r}
+install.packages('lubridate')
+library(lubridate)
+
+install.packages('tidyverse')
+library(tidyverse)
+
+install.packages('RColorBrewer')
+library(RColorBrewer)
+
+install.packages('scales')
+library(scales)
+
+install.packages('imager')
+library(imager)
+
+install.packages('png')
+library(png)
+```
+
+Now the data from the SQL server are retrieved.
+
+```{r}
+#Import the Cyclistic yearly data
+
+cyclistic_tripdata <- read.csv('data/cyclisticData.csv')
+```
+
+
+
+## Getting a sense of Cyclistic trip data
+
+The code chunk below presents the basic structure of Cyclistic's yearly trip data.
+
+```{r}
+head(cyclistic_tripdata)
+
+str(cyclistic_tripdata)
+
+colnames(cyclistic_tripdata)
+
+tibble(cyclistic_tripdata)
+
+summary(cyclistic_tripdata)
+```
+
+Now a data frame is created with only the columns needed for the analysis.
+
+```{r}
+cyclistic_tripdata_time <- cyclistic_tripdata %>% 
+  select(ride_id, rideable_type, started_at, ended_at, ride_length, ride_length_in_seconds, day_of_week, member_casual)
+
+colnames(cyclistic_tripdata_time)
+```
+
+The `day_of_week` column was change to factor and each number was labeled with the appropriate day name.
+
+```{r}
+cyclistic_tripdata_time$day_of_week <- factor(cyclistic_tripdata_time$day_of_week, labels = c('Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'), ordered = TRUE)
+```
+
+Below are some calculation to get a better sense of the data.
+
+```{r}
+str(cyclistic_tripdata_time)
+
+avg_ride_length_sec <- cyclistic_tripdata_time %>% summarise(avg_ride_length_seconds = mean(ride_length_in_seconds, na.rm = TRUE))
+avg_ride_length_total <- seconds_to_period(avg_ride_length_sec)
+avg_ride_length_total
+
+max_ride_length_sec <- cyclistic_tripdata_time %>% summarise(max_ride_length_sec = max(ride_length_in_seconds, na.rm = TRUE))
+max_ride_length <- seconds_to_period(max_ride_length_sec)                                                     
+max_ride_length
+
+median_ride_length_sec <- cyclistic_tripdata_time %>%  summarise(median_ride_length_sec = median(ride_length_in_seconds, na.rm = TRUE))
+median_ride_length <- seconds_to_period(median_ride_length_sec)
+median_ride_length
+
+# Create a function to get the mode 
+
+getmode <- function(v){
+  uniq_days <- unique(cyclistic_tripdata_time$day_of_week)
+  uniq_days[which.max(tabulate(match(cyclistic_tripdata_time$day_of_week, uniq_days)))]
+}
+ 
+
+# Calculate the mode of days_of_week
+
+days_of_week_mode <- getmode(cyclistic_tripdata_time$day_of_week)
+days_of_week_mode
+```
+
+From the results we can see that the average length of a ride for the users of Cyclistcic's bikes was 16 minutes and 42 seconds. The longest ride lasted for 1 day 1 hour 59 minutes and 56 seconds and the mode of ride length was 10 minutes and 25 seconds. So, the maximum value must be an outlier. Also, the day of the week that the users more often choose to take a ride with Cyclistic bikes is the Saturday.
+
+
+
+## Members vs. Casual Riders
+
+For better insights the two different groups were compared. The first graph in indicates that casual riders spend almost twice the time for their rides, an average of 22 minutes and 31 seconds compare to 12 minutes and 51 seconds for annual members. From the second graph of it can be observed that both types of users spend more time riding during the weekend, maybe because they have more free time then.
+
+```{r}
+# Calculate the average ride length for members and casual users
+
+avg_ride_length_by_user_type <- cyclistic_tripdata_time %>% group_by(member_casual) %>% 
+  summarise(avg_ride_length = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE)))
+
+avg_ride_length_by_user_type
+
+# Make a bar graph for the average ride length between members and casual users
+
+avg_ride_length_by_user_type %>%  ggplot() +
+  geom_col(mapping = aes(x = member_casual, y = avg_ride_length, fill = member_casual)) + geom_text(mapping = aes(x = member_casual, y = avg_ride_length, label = round(avg_ride_length, 0)), color = c('red', 'black'), vjust = -0.5) + labs(title = 'The average ride length for Annual Members vs. Casual Riders') + scale_fill_discrete(name = '', labels = c('Casual Rider', 'Annual Member')) +
+  scale_y_time(expand = expansion(mult = c(0, .1))) + scale_x_discrete(labels = c('casual' = 'Casual Rider', 'member' = 'Annual Member')) + xlab('User Type') + ylab('Average ride length') + theme_classic()
+
+
+
+# Calculate the average ride length for members and casual users by day of the week
+
+avg_ride_length_by_day_of_week <- cyclistic_tripdata_time %>% group_by(member_casual, day_of_week) %>% 
+  summarise(avg_ride_length_by_day_of_week = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE))) 
+
+avg_ride_length_by_day_of_week
+
+# Make a bar graph for the average ride length between members and casual users for each day of week
+
+max_points_casual <- avg_ride_length_by_day_of_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>%  filter(member_casual == 'casual') %>% .[1:3, ]
+max_points_member <- avg_ride_length_by_day_of_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>%  filter(member_casual == 'member') %>% .[1:3, ]
+max_points <- rbind(max_points_casual, max_points_member)
+
+
+avg_ride_length_by_day_of_week %>%  ggplot() +
+  geom_col(mapping = aes(x = day_of_week, y = avg_ride_length_by_day_of_week, fill = member_casual), position = position_dodge(0.6), width = 0.5) + scale_y_time(expand = expansion(mult = c(0, .1))) +
+  xlab('Day of the Week') + ylab('Average ride length') + theme_classic() + theme(axis.text.x = element_text(angle = 45, vjust = 0.7)) +scale_fill_discrete(name = '', labels = c('Casual Rider', 'Annual Member'))+
+  geom_text(data = max_points_member, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 2, vjust = -0.5, hjust = 0 ) +
+  geom_text(data = max_points_casual, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 2, vjust = -0.5) +
+  labs(title = 'Average ride length for each Day of the Week', subtitle = 'Casual Riders vs. Annual Members')
+
+
+
+```
+
+Interesting conclusions come from inspecting the number of rides its group took. Annual members ride Cyclistic bikes more frequently than casual riders. This may mean that there are more members than casual riders or members using bikes more often or maybe both of them are true. Another interesting fact is the members using Cyclistic bikes more often in the middle of the week, on the other hand casual riders prefer to ride on the weekends. An explanation could be that members are using bike as their main mean of transportation, as for casual riders they prefer to ride on their free time.
+
+```{r}
+# Calculate the number of rides for members and casual users
+
+num_of_rides <- cyclistic_tripdata_time %>%  group_by(member_casual) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE))
+
+num_of_rides
+
+# Make a bar graph for the number of rides of members and casual users
+
+num_of_rides %>%  ggplot() +
+  geom_col(mapping = aes(x = member_casual, y = num_of_rides, fill = member_casual)) + geom_text(mapping = aes(x = member_casual, y = num_of_rides, label = comma(num_of_rides)), color = c('black', 'red'), vjust = -0.5) + labs(title = 'The number of rides of Annual Members vs. Casual Riders') +
+  scale_y_continuous(expand = expansion(mult = c(0, .1)), labels = comma) + scale_x_discrete(labels = c('casual' = 'Casual Rider', 'member' = 'Annual Member')) + xlab('User Type') + ylab('Number of rides') + theme_classic() + scale_fill_brewer(name = '', labels = c('Casual User', 'Annual Member'), palette = 'Accent')
+
+
+
+# Calculate the number of rides for members and casual users by day of the week
+
+num_of_rides_by_day_of_week <- cyclistic_tripdata_time %>%  group_by(member_casual, day_of_week) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) %>% 
+  arrange(desc(num_of_rides), .by_group = TRUE)
+
+num_of_rides_by_day_of_week
+
+# Make a bar graph for the number of rides of members and casual users for each day of week
+
+max_num_casual <- num_of_rides_by_day_of_week %>% arrange(desc(num_of_rides)) %>%  filter(member_casual == 'casual') %>% .[1:3, ]
+max_num_member <- num_of_rides_by_day_of_week %>% arrange(desc(num_of_rides)) %>%  filter(member_casual == 'member') %>% .[1:3, ]
+max_num <- rbind(max_num_casual, max_num_member)
+
+
+
+num_of_rides_by_day_of_week %>% ggplot() +
+  geom_col(mapping = aes(x = day_of_week, y = num_of_rides, fill = member_casual), position = position_dodge(0.6), width = 0.5) + scale_y_continuous(expand = expansion(mult = c(0, .1)), labels = comma) +
+  xlab('Day of the Week') + ylab('Number of rides') + theme_classic() + theme(axis.text.x = element_text(angle = 45, vjust = 0.7)) +
+  geom_text(data = max_num_member, aes(x = day_of_week, y = num_of_rides, label = comma(num_of_rides)), size = 2, vjust = -0.5, hjust = 0 ) +
+  geom_text(data = max_num_casual, aes(x = day_of_week, y = num_of_rides, label = comma(num_of_rides)), size = 2, vjust = - 0.5, hjust = 1) +
+  labs(title = 'Number of rides for each Day of the Week', subtitle = 'Casual Riders vs. Annual Members') +
+  scale_fill_brewer(name = '', labels = c('Casual Rider', 'Annual Member'), palette = 'Accent') 
+  
+
+```
+
+```{r}
+# calculate the use of rideable bike by user
+
+type_of_bike_used <- cyclistic_tripdata_time %>% filter(!is.na(rideable_type)) %>%  group_by(member_casual, rideable_type) %>% summarise(num_of_bike_type_used = n())
+
+type_of_bike_used
+
+# Make a bar graph for the preferable type of bike for each kind of user
+
+text_for_casual_type <- type_of_bike_used %>% filter(member_casual == 'casual') 
+text_for_member_type <- type_of_bike_used %>% filter(member_casual == 'member') 
+
+
+
+type_of_bike_used %>% ggplot() +
+  geom_col(mapping = aes(x = rideable_type, y = num_of_bike_type_used, fill = member_casual), position = position_dodge(0.6), width = 0.5) + 
+  geom_text(data = text_for_casual_type, mapping = aes(x = rideable_type, y = num_of_bike_type_used, label = comma(num_of_bike_type_used)), vjust = -0.5, hjust = 1.15, size = 3) + 
+  geom_text(data = text_for_member_type, mapping = aes(x = rideable_type, y = num_of_bike_type_used, label = comma(num_of_bike_type_used)), vjust = -0.5, hjust = -0.1, size = 3) + 
+  labs(title = 'Which type of bike do the riders prefer?', subtitle = 'Casual Riders vs. Annual Members') +
+  scale_y_continuous(expand = expansion(mult = c(0, .1)), labels = comma) + scale_x_discrete(expand = expansion(mult = c(.3, .3)), labels = c('classic_bike' = 'Classic Bike', 'electric_bike' = 'Electric Bike')) + xlab('Type of Bike') + ylab('Number of rides') + theme_classic() + scale_fill_brewer(name = '', labels = c('Casual Rider', 'Annual Member'), palette = 'Dark2')
+
+```
+
+It is also interesting that casual riders prefer electric bikes to the classic type. Meaning they are interested about new approaches in riding and how technology affects it. The annual members seem to be more traditional and choose classic bikes over the electric ones.
+
+Now the data frame is broken into quarterly data frames in order to explore seasonal trends in our data.
+
+```{r}
+# Store the data into quarterly data frames and explore seasonal trends.
+
+q1_tripdata <- cyclistic_tripdata_time %>% filter(started_at >= '2021-09-01 00:00:00' & started_at < '2021-12-01 00:00:00') %>% 
+  select(1:8)
+
+q2_tripdata <- cyclistic_tripdata_time %>% filter(started_at >= '2021-12-01 00:00:00' & started_at < '2022-03-01 00:00:00') %>% 
+  select(1:8)
+
+q3_tripdata <- cyclistic_tripdata_time %>% filter(started_at >= '2022-03-01 00:00:00' & started_at < '2022-06-01 00:00:00') %>% 
+  select(1:8)
+
+q4_tripdata <- cyclistic_tripdata_time %>% filter(started_at >= '2022-06-01 00:00:00' & started_at < '2022-09-01 00:00:00') %>% 
+  select(1:8)
+```
+
+```{r}
+# Calculate the average ride length for members and casual users for each quarter
+
+avg_ride_length_by_user_type_q1 <- q1_tripdata %>% group_by(member_casual) %>% 
+  summarise(avg_ride_length = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE)))
+
+avg_ride_length_by_user_type_q1
+
+
+avg_ride_length_by_user_type_q2 <- q2_tripdata %>% group_by(member_casual) %>% 
+  summarise(avg_ride_length = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE)))
+
+avg_ride_length_by_user_type_q2
+
+
+avg_ride_length_by_user_type_q3 <- q3_tripdata %>% group_by(member_casual) %>% 
+  summarise(avg_ride_length = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE)))
+
+avg_ride_length_by_user_type_q3
+
+
+avg_ride_length_by_user_type_q4 <- q4_tripdata %>% group_by(member_casual) %>% 
+  summarise(avg_ride_length = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE)))
+
+avg_ride_length_by_user_type_q4
+
+# Make a bar graph for the average ride length between members and casual users for each quarter
+
+quarter_labs <- as_labeller(c(`1st Quarter` = '1st Quarter\nSep. 2021 - Nov. 2021', `2nd Quarter` = '2nd Quarter\nDec. 2021 - Feb. 2022', `3rd Quarter` = '3rd Quarter\nMar. 2022 - May 2022', `4th Quarter` = '4th Quarter\nJun. 2022 - Aug. 2022'))
+
+
+avg_quarters_combined <- rbind(avg_ride_length_by_user_type_q1 %>% mutate(quarter = '1st Quarter'),
+avg_ride_length_by_user_type_q2 %>% mutate(quarter = '2nd Quarter'),
+avg_ride_length_by_user_type_q3 %>% mutate(quarter = '3rd Quarter'),
+avg_ride_length_by_user_type_q4 %>% mutate(quarter = '4th Quarter'))
+
+
+avg_quarters_combined %>%  ggplot() +
+  geom_col(mapping = aes(x = member_casual, y = avg_ride_length, fill = member_casual)) + geom_text(mapping = aes(x = member_casual, y = avg_ride_length, label = round(avg_ride_length, 0)), vjust = -0.5) + labs(title = 'The average ride length for Annual Members vs. Casual Riders') + scale_fill_discrete(name = '', labels = c('Casual Rider', 'Annual Member')) +
+  scale_y_time(expand = expansion(mult = c(0, .2))) + scale_x_discrete(labels = c('casual' = 'Casual Rider', 'member' = 'Annual Member')) + xlab('User Type') + ylab('Average ride length') + theme_classic() +
+  facet_wrap(~quarter, labeller = quarter_labs)
+
+```
+
+```{r}
+# Calculate the average ride length for members and casual users by day of the week for each quarter
+
+avg_ride_length_by_day_of_week_q1 <- q1_tripdata %>% group_by(member_casual, day_of_week) %>% 
+  summarise(avg_ride_length_by_day_of_week = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE))) 
+
+avg_ride_length_by_day_of_week_q1
+
+
+avg_ride_length_by_day_of_week_q2 <- q2_tripdata %>% group_by(member_casual, day_of_week) %>% 
+  summarise(avg_ride_length_by_day_of_week = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE))) 
+
+avg_ride_length_by_day_of_week_q2
+
+
+avg_ride_length_by_day_of_week_q3 <- q3_tripdata %>% group_by(member_casual, day_of_week) %>% 
+  summarise(avg_ride_length_by_day_of_week = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE))) 
+
+avg_ride_length_by_day_of_week_q3
+
+
+avg_ride_length_by_day_of_week_q4 <- q4_tripdata %>% group_by(member_casual, day_of_week) %>% 
+  summarise(avg_ride_length_by_day_of_week = seconds_to_period(mean(ride_length_in_seconds, na.rm = TRUE))) 
+
+avg_ride_length_by_day_of_week_q4
+
+# Make a bar graph for the average ride length between members and casual users for each day of week for each quarter
+
+avg_quarters_combined_by_week <- rbind(avg_ride_length_by_day_of_week_q1 %>% mutate(quarter = '1st Quarter'),
+avg_ride_length_by_day_of_week_q2 %>% mutate(quarter = '2nd Quarter'),
+avg_ride_length_by_day_of_week_q3 %>% mutate(quarter = '3rd Quarter'),
+avg_ride_length_by_day_of_week_q4 %>% mutate(quarter = '4th Quarter'))
+
+max_points_casual_by_quarter1 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '1st Quarter', member_casual == 'casual') %>% .[1:3, ]
+max_points_member_by_quarter1 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '1st Quarter', member_casual == 'member') %>% .[1:3, ]
+
+max_points_casual_by_quarter2 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '2nd Quarter', member_casual == 'casual') %>% .[1:3, ]
+max_points_member_by_quarter2 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '2nd Quarter', member_casual == 'member') %>% .[1:3, ]
+
+max_points_casual_by_quarter3 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '3rd Quarter', member_casual == 'casual') %>% .[1:3, ]
+max_points_member_by_quarter3 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '3rd Quarter', member_casual == 'member') %>% .[1:3, ]
+
+max_points_casual_by_quarter4 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '4th Quarter', member_casual == 'casual') %>% .[1:3, ]
+max_points_member_by_quarter4 <- avg_quarters_combined_by_week %>% arrange(desc(avg_ride_length_by_day_of_week)) %>% filter(quarter == '4th Quarter', member_casual == 'member') %>% .[1:3, ]
+
+avg_quarters_combined_by_week %>% ggplot() +
+  geom_col(mapping = aes(x = day_of_week, y = avg_ride_length_by_day_of_week, fill = member_casual), position = position_dodge(0.6), width = 0.5) + scale_y_time(expand = expansion(mult = c(0, .1))) +
+  xlab('Day of the Week') + ylab('Average ride length') + theme_classic() + theme(axis.text.x = element_text(angle = 45, vjust = 0.7)) +scale_fill_discrete(name = '', labels = c('Casual Rider', 'Annual Member'))+
+  geom_text(data = max_points_member_by_quarter1, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5, hjust = 0 ) +
+  geom_text(data = max_points_member_by_quarter2, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5, hjust = 0 ) +
+  geom_text(data = max_points_member_by_quarter3, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5, hjust = 0 ) +
+  geom_text(data = max_points_member_by_quarter4, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5, hjust = 0 ) +
+  geom_text(data = max_points_casual_by_quarter1, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5) +
+  geom_text(data = max_points_casual_by_quarter2, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5) +
+  geom_text(data = max_points_casual_by_quarter3, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5) +
+  geom_text(data = max_points_casual_by_quarter4, aes(x = day_of_week, y = avg_ride_length_by_day_of_week, label = round(avg_ride_length_by_day_of_week, 0)), size = 1, vjust = -0.5) +
+  labs(title = 'Average ride length for each Day of the Week', subtitle = 'Casual Riders vs. Annual Members') +
+  facet_wrap(~quarter, labeller = quarter_labs)
+
+```
+
+```{r}
+# Calculate the mumber of rides for members and casual user for each quarter
+
+num_of_rides_q1 <- q1_tripdata %>%  group_by(member_casual) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) 
+
+num_of_rides_q1
+
+
+num_of_rides_q2 <- q2_tripdata %>%  group_by(member_casual) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) 
+
+num_of_rides_q2
+
+
+num_of_rides_q3 <- q3_tripdata %>%  group_by(member_casual) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) 
+
+num_of_rides_q3
+
+
+num_of_rides_q4 <- q4_tripdata %>%  group_by(member_casual) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) 
+
+num_of_rides_q4
+
+# Make a bar graph for the number of rides of members and casual users for each quarter
+
+num_quarters_combined <- rbind(num_of_rides_q1 %>% mutate(quarter = '1st Quarter'),
+num_of_rides_q2 %>% mutate(quarter = '2nd Quarter'),
+num_of_rides_q3 %>% mutate(quarter = '3rd Quarter'),
+num_of_rides_q4 %>% mutate(quarter = '4th Quarter'))
+num_quarters_combined
+
+num_quarters_combined %>% ggplot() +
+  geom_col(mapping = aes(x = member_casual, y = num_of_rides, fill = member_casual)) + geom_text(mapping = aes(x = member_casual, y = num_of_rides, label = comma(num_of_rides)), color = c('black', 'red', 'black', 'red', 'black', 'red', 'black', 'red'), vjust = -0.5) + labs(title = 'The number of rides of Annual Members vs. Casual Riders') +
+  scale_y_continuous(expand = expansion(mult = c(0, .15)), labels = comma) + scale_x_discrete(labels = c('casual' = 'Casual Rider', 'member' = 'Annual Member')) + xlab('User Type') + ylab('Number of rides') + theme_classic() + scale_fill_brewer(name = '', labels = c('Casual Rider', 'Annual Member'), palette = 'Accent') +
+  facet_wrap(~quarter, labeller = quarter_labs)
+
+```
+
+```{r}
+# Calculate the number of rides for members and casual users by day of the week for each quarter
+
+num_of_rides_by_day_of_week_q1 <- q1_tripdata %>%  group_by(member_casual, day_of_week) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) %>% 
+  arrange(desc(num_of_rides), .by_group = TRUE)
+
+num_of_rides_by_day_of_week_q1
+
+
+num_of_rides_by_day_of_week_q2 <- q2_tripdata %>%  group_by(member_casual, day_of_week) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) %>% 
+  arrange(desc(num_of_rides), .by_group = TRUE)
+
+num_of_rides_by_day_of_week_q2
+
+
+num_of_rides_by_day_of_week_q3 <- q3_tripdata %>%  group_by(member_casual, day_of_week) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) %>% 
+  arrange(desc(num_of_rides), .by_group = TRUE)
+
+num_of_rides_by_day_of_week_q3
+
+
+num_of_rides_by_day_of_week_q4 <- q4_tripdata %>%  group_by(member_casual, day_of_week) %>% 
+  summarise(num_of_rides = n_distinct(ride_id, na.rm = TRUE)) %>% 
+  arrange(desc(num_of_rides), .by_group = TRUE)
+
+num_of_rides_by_day_of_week_q4
+
+# Make a bar graph for the number of rides of members and casual users for each day of week for each quarter
+
+num_quarters_combined_by_week <- rbind(num_of_rides_by_day_of_week_q1 %>% mutate(quarter = '1st Quarter'),
+num_of_rides_by_day_of_week_q2 %>% mutate(quarter = '2nd Quarter'),
+num_of_rides_by_day_of_week_q3 %>% mutate(quarter = '3rd Quarter'),
+num_of_rides_by_day_of_week_q4 %>% mutate(quarter = '4th Quarter'))
+
+max_num_casual_quarters <- num_quarters_combined_by_week %>% arrange(desc(num_of_rides)) %>% group_by(quarter, member_casual) %>% slice(1:3) %>% filter(member_casual == 'casual')
+max_num_member_quarters <- num_quarters_combined_by_week %>% arrange(desc(num_of_rides)) %>% group_by(quarter, member_casual) %>% slice(1:3) %>% filter(member_casual == 'member')
+
+num_quarters_combined_by_week %>% ggplot() +
+  geom_col(mapping = aes(x = day_of_week, y = num_of_rides, fill = member_casual), position = position_dodge(0.6), width = 0.5) + scale_y_continuous(expand = expansion(mult = c(0, .1)), labels = comma) +
+  xlab('Day of the Week') + ylab('Number of rides') + theme_classic() + theme(axis.text.x = element_text(angle = 45, vjust = 0.7)) +
+  geom_text(data = max_num_member_quarters, aes(x = day_of_week, y = num_of_rides, label = comma(num_of_rides)), size = 1, vjust = -0.5, hjust = 0 ) +
+  geom_text(data = max_num_casual_quarters, aes(x = day_of_week, y = num_of_rides, label = comma(num_of_rides)), size = 1, vjust = - 0.5, hjust = 1) +
+  labs(title = 'Number of rides for each Day of the Week', subtitle = 'Casual Riders vs. Annual Members') +
+  scale_fill_brewer(name = '', labels = c('Casual Rider', 'Annual Member'), palette = 'Accent') +
+  facet_wrap(~quarter, labeller = quarter_labs)
+
+
+```
+
+```{r}
+# calculate the use of rideable bike by user for each quarter
+
+type_of_bike_used_q1 <- q1_tripdata %>% filter(!is.na(rideable_type)) %>%  group_by(member_casual, rideable_type) %>% 
+  summarise(num_of_bike_type_used = n())
+
+type_of_bike_used_q1
+
+
+type_of_bike_used_q2 <- q2_tripdata %>% filter(!is.na(rideable_type)) %>%  group_by(member_casual, rideable_type) %>% 
+  summarise(num_of_bike_type_used = n())
+
+type_of_bike_used_q2
+
+
+type_of_bike_used_q3 <- q3_tripdata %>% filter(!is.na(rideable_type)) %>%  group_by(member_casual, rideable_type) %>% 
+  summarise(num_of_bike_type_used = n())
+
+type_of_bike_used_q3
+
+
+type_of_bike_used_q4 <- q4_tripdata %>% filter(!is.na(rideable_type)) %>%  group_by(member_casual, rideable_type) %>% 
+  summarise(num_of_bike_type_used = n())
+
+type_of_bike_used_q4
+
+# Make a bar graph for the preferable type of bike for each kind of user for each quarter
+
+type_of_bike_used_all_quarters <- rbind(type_of_bike_used_q1 %>% mutate(quarter = '1st Quarter'),
+type_of_bike_used_q2 %>% mutate(quarter = '2nd Quarter'),
+type_of_bike_used_q3 %>% mutate(quarter = '3rd Quarter'),
+type_of_bike_used_q4 %>% mutate(quarter = '4th Quarter'))
+
+
+text_for_casual_type_quarter <- type_of_bike_used_all_quarters %>% filter(member_casual == 'casual') 
+text_for_member_type_quarter <- type_of_bike_used_all_quarters %>% filter(member_casual == 'member') 
+
+
+type_of_bike_used_all_quarters %>% ggplot() +
+  geom_col(mapping = aes(x = rideable_type, y = num_of_bike_type_used, fill = member_casual), position = position_dodge(0.6), width = 0.5) + 
+  geom_text(data = text_for_casual_type_quarter, mapping = aes(x = rideable_type, y = num_of_bike_type_used, label = comma(num_of_bike_type_used)), vjust = -0.5, hjust = 1, size = 2) + 
+  geom_text(data = text_for_member_type_quarter, mapping = aes(x = rideable_type, y = num_of_bike_type_used, label = comma(num_of_bike_type_used)), vjust = -0.5, hjust = 0, size = 2) + 
+  labs(title = 'Which type of bike do the riders prefer?', subtitle = 'Casual Riders vs. Annual Members') +
+  scale_y_continuous(expand = expansion(mult = c(0, .2)), labels = comma) + scale_x_discrete(expand = expansion(mult = c(.4, .4)), labels = c('classic_bike' = 'Classic Bike', 'docked_bike', 'electric_bike' = 'Electric Bike')) + 
+  xlab('Type of Bike') + ylab('Number of rides') + theme_classic() + theme(axis.text.x = element_text(size = 6)) + scale_fill_brewer(name = '', labels = c('Casual Rider', 'Annual Member'), palette = 'Dark2') + 
+  facet_wrap(~quarter, labeller = quarter_labs)
+
+```
+
+Examining the seasonal trends from the previous figures the main point to keep in mind is that for both members and casual riders there is an increase in using Cyclistic bikes and in the average length of the rides in the spring, it reaches its peak in the summer and it continues at high rates in the autumn. So, the lowest point is in the winter and it is logical if someone considers the weather conditions.
+
+As a last step we will create a data frame with the longitutde and latitude data and save them as a RData file to use it in Tableau and make a map visualization.
+
+```{r}
+map_view_1 <- cyclistic_tripdata %>% filter((start_lng_coordinates != 0) & (start_lat_coordinates != 0)) %>% 
+  select(ride_id, member_casual, start_lng_coordinates, start_lat_coordinates) 
+
+colnames(map_view_1)[3] <- 'lng_coordinates'
+colnames(map_view_1)[4] <- 'lat_coordinates'
+
+  
+map_view_2 <- cyclistic_tripdata %>% filter((end_lng_coordinates != 0) & (end_lat_coordinates != 0)) %>% 
+  select(ride_id, member_casual, end_lng_coordinates, end_lat_coordinates) 
+
+
+colnames(map_view_2)[3] <- 'lng_coordinates'
+colnames(map_view_2)[4] <- 'lat_coordinates'
+
+map_view <- rbind(map_view_1, map_view_2)
+
+summary(map_view %>% filter(member_casual == 'member') %>% select(lng_coordinates, lat_coordinates))
+summary(map_view %>% filter(member_casual == 'casual') %>% select(lng_coordinates, lat_coordinates))
+
+sample_map_view <- sample_n(map_view, 10000)
+
+save(sample_map_view, file = '/cyclistic_tripdata_lng_lat.RData')
+
+```
+
+```{r}
+lng_lat_view <- readPNG('images/lng_lat_view.png')
+plot(1:500, ty = 'n')
+rasterImage(lng_lat_view, 3, 3, 480, 480)
+```
+
+
+## Marketing strategies recommendations
+
+The analysis was able to identify trends from the historical data and also answer the critical question of how casual rides use Cyclistic bikes differently compare to the annual members. Now, the new information can be exploited and new data-driven recommendations can be formulated aiming at converting casual riders into annual members.
+
+First of all, it is very critical to present Cyclistic bike-share program as a way of using bicycles as the main mean of transportation to every day work. As the analysis showed annual members tend to use bikes more often during the middle of the week, in contrast casual riders prefer to use bikes during the weekend. So, promoting how Cyclistic bike-share program can be used for going to work can eventually persuade casual rider to purchase an annual membership. In conjunction with the previous strategy, promoting the plethora of electric bikes the program offer would have an even bigger impact in converting casual riders to members. This springs from the fact that casual riders prefer electric bikes over the classic ones.
+
+Last but not least, it is very important to start the campaign in the end of the winter and start of the spring, i.e., between February and March. The reason for that is that this is when bike rides would probable start increasing, as the seasonal analysis showcased.
+
+It is very important to note that this analysis needs to continue to be conducted in short periods of time, maybe yearly or biannual, in order to keep track of the latest changes in the customers' behavior. Even more, further data are needed from surveys or other methods in order to acquire a more complete and holist profile of the Cyclistic's customers and to be explored what they like and dislike about the program. Also, it important the percentages of different groups, such as the males and females or people with disabilities, that constitute the hole of Cyclistic's customers to be identified so that new approaches and marketing strategies can be created in light of these new insights.
