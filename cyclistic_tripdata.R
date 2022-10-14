@@ -1,4 +1,7 @@
-# Install necessary packages to import, analyze and visualize data.
+# Install necessary packages to import, analyze and visualize data
+
+install.packages('scales')
+library(scales)
 
 install.packages("lubridate")
 library(lubridate)
@@ -9,13 +12,10 @@ library(tidyverse)
 install.packages('RColorBrewer')
 library(RColorBrewer)
 
-install.packages('scales')
-library(scales)
-
 
 #Import the Cyclistic yearly data
 
-cyclistic_tripdata <- read.csv('data/cyclisticData.csv')
+cyclistic_tripdata <- read.csv('./Data/data.csv')
 
 
 #Overview of the data
