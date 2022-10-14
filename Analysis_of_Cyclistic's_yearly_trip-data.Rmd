@@ -514,9 +514,6 @@ summary(map_view %>% filter(member_casual == 'member') %>% select(lng_coordinate
 summary(map_view %>% filter(member_casual == 'casual') %>% select(lng_coordinates, lat_coordinates))
 
 sample_map_view <- sample_n(map_view, 10000)
-
-save(sample_map_view, file = '/cyclistic_tripdata_lng_lat.RData')
-
 ```
 
 ```{r}
