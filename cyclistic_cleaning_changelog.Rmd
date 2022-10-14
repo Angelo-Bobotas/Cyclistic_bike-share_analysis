@@ -1,0 +1,49 @@
+---
+title: "cyclistic_cleaning_changelog"
+author: "Bompotas A."
+date: "2022-09-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Changelog
+
+This file contains notable cleaning or manipulation of data.
+
+Version 1.0.0 (14/09/2022)
+
+## Changes
+
+-   Store the data in a .xlsx workbook with different spreadsheets for each month.
+
+-   Change the data type of columns `ride_id, rideable_type, start_station_name, end_station_name, member_casual` to text and `start_lat, start_lng, end_lat, end_lng` to number. So that its column has the most appropriate data type. The change was made in all the spreadsheets of the workbook.
+
+-   Import the .xlsx workbook into Microsoft SQL Server
+
+-   Check that the column `ride_id` has distinct values with the `SELECT DISTINCT` query.
+
+-   Check the validity of entries in columns `rideable_type` and `member_casual` using `GROUP BY`.
+
+## Added
+
+-   Separate the columns `started_at` and `ended_at` into the columns `date_started_at`, `time_started_at`, `date_ended_at` and `time_ended_at`.
+
+-   Create a column, named `ride_length_in_seconds`, that represents the duration of each ride in seconds.
+
+-   Create a column, named `ride_legth`, that represents the duration of each ride in hhh:mm:ss format.
+
+-   Create a column, named `day_of_week`, where it shows the day of the week in a range from 1 to 7. 1 is Sunday and 7 is Saturday.
+
+-   Create columns for latitude, longitude with correct coordinates.
+
+-   Create columns of `start_station_name`, `start_station_id`, `end_station_name` and `end_station_id` that have no extra spaces.
+
+# Removed
+
+-   Delete the records where `started_at` is greater than `ended_at`.
+
+-   Delete the records where `rideable_type` has the value `docked_bike`.
+
