@@ -14,14 +14,8 @@ knitr::opts_chunk$set(warning = FALSE, message = FALSE)
 First we will import the appropriate packages to analyze and visualize data.
 
 ```{r}
-install.packages('lubridate')
-library(lubridate)
-
-install.packages('tidyverse')
-library(tidyverse)
-
-install.packages('RColorBrewer')
-library(RColorBrewer)
+install.packages('png')
+library(png)
 
 install.packages('scales')
 library(scales)
@@ -29,8 +23,14 @@ library(scales)
 install.packages('imager')
 library(imager)
 
-install.packages('png')
-library(png)
+install.packages('RColorBrewer')
+library(RColorBrewer)
+
+install.packages("lubridate")
+library(lubridate)
+
+install.packages('tidyverse')
+library(tidyverse)
 ```
 
 Now the data from the SQL server are retrieved.
@@ -38,7 +38,7 @@ Now the data from the SQL server are retrieved.
 ```{r}
 #Import the Cyclistic yearly data
 
-cyclistic_tripdata <- read.csv('data/cyclisticData.csv')
+cyclistic_tripdata <- read.csv('./Data/data.csv')
 ```
 
 
