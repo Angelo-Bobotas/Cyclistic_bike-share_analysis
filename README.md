@@ -4,7 +4,7 @@
 
 This case study was conducted for the purposes of “Google Data Analytics Capstone Project”, which is part of the “Google Data Analytics Professional Certificate”. Cyclistic is a fictional company based in Chicago.  In the study data analysis is performed on yearly trip data and clear data visualizations are created in order to understand how casual riders and annual members use Cyclistic bikes differently. The data used for the purposes of this case study are made available from Motivate International Inc. 
 
-The full report of the case study is in [Exploration and visualization of Cyclistic’s yearly trip data](https://sites.google.com/view/angelobombotasportfolio/my-projects/exploration-and-visualization-of-cyclistics-yearly-trip-data).
+The full report of the case study is in [Exploration and visualization of Cyclistic’s yearly trip data](https://sites.google.com/view/angelobompotasportfolio/my-projects/exploration-and-visualization-of-cyclistics-yearly-trip-data).
 
 ## Table of Contents
 
